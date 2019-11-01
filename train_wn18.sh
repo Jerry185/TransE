@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 CUDA_VISIBLE_DEVICES=0 \
-python main.py \
---data_dir ../data/WN18/ \
+python src/main.py \
+--data_dir data/WN18/ \
 --embedding_dim 50 \
 --margin_value 4 \
 --batch_size 3000 \

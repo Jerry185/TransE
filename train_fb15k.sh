@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 CUDA_VISIBLE_DEVICES=0 \
-python main.py \
---data_dir ../data/FB15k/ \
+python src/main.py \
+--data_dir ./data/FB15k/ \
 --embedding_dim 100 \
 --margin_value 1 \
 --batch_size 10000 \

@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import random
 
-
 class KnowledgeGraph:
     def __init__(self, data_dir):
         self.data_dir = data_dir
@@ -12,6 +11,7 @@ class KnowledgeGraph:
         self.relation_dict = {}
         self.n_entity = 0
         self.n_relation = 0
+        # 三元组的列表
         self.training_triples = []  # list of triples in the form of (h, t, r)
         self.validation_triples = []
         self.test_triples = []
@@ -74,18 +74,22 @@ class KnowledgeGraph:
             yield [self.training_triples[i] for i in rand_idx[start:end]]
             start = end
 
+    '''原始三元组生成训练三元组'''
     def generate_training_batch(self, in_queue, out_queue):
         while True:
+            # 获取一个batch的原始数据
             raw_batch = in_queue.get()
             if raw_batch is None:
                 return
             else:
                 batch_pos = raw_batch
                 batch_neg = []
+                # 0,1随机取值
                 corrupt_head_prob = np.random.binomial(1, 0.5)
                 for head, tail, relation in batch_pos:
                     head_neg = head
                     tail_neg = tail
+                    # 相同的关系，在实体集合中随机抽取两个实体，如果不在三元组集合内，设为负例
                     while True:
                         if corrupt_head_prob:
                             head_neg = random.choice(self.entities)

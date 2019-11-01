@@ -1,9 +1,11 @@
 import math
 import timeit
 import numpy as np
+import sys
+sys.path.append("/home/mola/PycharmProjects/TransE")
 import tensorflow as tf
 import multiprocessing as mp
-from dataset import KnowledgeGraph
+from src.dataset import KnowledgeGraph
 
 
 class TransE:
@@ -19,7 +21,9 @@ class TransE:
         self.n_generator = n_generator
         self.n_rank_calculator = n_rank_calculator
         '''ops for training'''
+        # 正例三元组 如A-B-C
         self.triple_pos = tf.placeholder(dtype=tf.int32, shape=[None, 3])
+        # 反例三元组 如E-B-C或A-B-E
         self.triple_neg = tf.placeholder(dtype=tf.int32, shape=[None, 3])
         self.margin = tf.placeholder(dtype=tf.float32, shape=[None])
         self.train_op = None
@@ -30,26 +34,33 @@ class TransE:
         self.eval_triple = tf.placeholder(dtype=tf.int32, shape=[3])
         self.idx_head_prediction = None
         self.idx_tail_prediction = None
-        '''embeddings'''
+        '''embeddings 初始值在负六分之根号六与六分之根号六之间取值'''
         bound = 6 / math.sqrt(self.embedding_dim)
+        # 构建嵌入层
         with tf.variable_scope('embedding'):
+            # 实体嵌入层 []
             self.entity_embedding = tf.get_variable(name='entity',
                                                     shape=[kg.n_entity, self.embedding_dim],
                                                     initializer=tf.random_uniform_initializer(minval=-bound,
-                                                                                              maxval=bound))
+                                                                                           maxval=bound))
             tf.summary.histogram(name=self.entity_embedding.op.name, values=self.entity_embedding)
+            # 关系嵌入层
             self.relation_embedding = tf.get_variable(name='relation',
                                                       shape=[kg.n_relation, self.embedding_dim],
                                                       initializer=tf.random_uniform_initializer(minval=-bound,
                                                                                                 maxval=bound))
             tf.summary.histogram(name=self.relation_embedding.op.name, values=self.relation_embedding)
+        # 构建训练神经网络模型
         self.build_graph()
+        # 构建验证神经网络模型
         self.build_eval_graph()
 
     def build_graph(self):
+        # 归一化层
         with tf.name_scope('normalization'):
             self.entity_embedding = tf.nn.l2_normalize(self.entity_embedding, dim=1)
             self.relation_embedding = tf.nn.l2_normalize(self.relation_embedding, dim=1)
+        # 训练参数
         with tf.name_scope('training'):
             distance_pos, distance_neg = self.infer(self.triple_pos, self.triple_neg)
             self.loss = self.calculate_loss(distance_pos, distance_neg, self.margin)
@@ -64,14 +75,19 @@ class TransE:
 
     def infer(self, triple_pos, triple_neg):
         with tf.name_scope('lookup'):
+            # 正例的头实体向量表示
             head_pos = tf.nn.embedding_lookup(self.entity_embedding, triple_pos[:, 0])
+            # 正例的尾实体向量表示
             tail_pos = tf.nn.embedding_lookup(self.entity_embedding, triple_pos[:, 1])
+            # 关系的向量表示
             relation_pos = tf.nn.embedding_lookup(self.relation_embedding, triple_pos[:, 2])
             head_neg = tf.nn.embedding_lookup(self.entity_embedding, triple_neg[:, 0])
             tail_neg = tf.nn.embedding_lookup(self.entity_embedding, triple_neg[:, 1])
             relation_neg = tf.nn.embedding_lookup(self.relation_embedding, triple_neg[:, 2])
         with tf.name_scope('link'):
+            # 正例的距离差
             distance_pos = head_pos + relation_pos - tail_pos
+            # 负例的距离差
             distance_neg = head_neg + relation_neg - tail_neg
         return distance_pos, distance_neg
 
@@ -83,6 +99,7 @@ class TransE:
             else:  # L2 score
                 score_pos = tf.reduce_sum(tf.square(distance_pos), axis=1)
                 score_neg = tf.reduce_sum(tf.square(distance_neg), axis=1)
+            #  让正例距离减去负例距离最小
             loss = tf.reduce_sum(tf.nn.relu(margin + score_pos - score_neg), name='max_margin_loss')
         return loss
 
@@ -108,14 +125,18 @@ class TransE:
         return idx_head_prediction, idx_tail_prediction
 
     def launch_training(self, session, summary_writer):
+        # 原始数据队列
         raw_batch_queue = mp.Queue()
+        # 训练数据队列
         training_batch_queue = mp.Queue()
+        # 队列数据切换
         for _ in range(self.n_generator):
             mp.Process(target=self.kg.generate_training_batch, kwargs={'in_queue': raw_batch_queue,
                                                                        'out_queue': training_batch_queue}).start()
         print('-----Start training-----')
         start = timeit.default_timer()
         n_batch = 0
+        # 将原始数据加入队列
         for raw_batch in self.kg.next_raw_batch(self.batch_size):
             raw_batch_queue.put(raw_batch)
             n_batch += 1

@@ -1,11 +1,14 @@
-from dataset import KnowledgeGraph
-from model import TransE
+import sys
+sys.path.append("/home/mola/PycharmProjects/TransE")
+from src.dataset import KnowledgeGraph
+from src.model import TransE
 
 import tensorflow as tf
 import argparse
 
 
 def main():
+    # 转化命令参数
     parser = argparse.ArgumentParser(description='TransE')
     parser.add_argument('--data_dir', type=str, default='../data/FB15k/')
     parser.add_argument('--embedding_dim', type=int, default=200)
@@ -22,6 +25,7 @@ def main():
     args = parser.parse_args()
     print(args)
     kg = KnowledgeGraph(data_dir=args.data_dir)
+    # 初始化transE模型
     kge_model = TransE(kg=kg, embedding_dim=args.embedding_dim, margin_value=args.margin_value,
                        score_func=args.score_func, batch_size=args.batch_size, learning_rate=args.learning_rate,
                        n_generator=args.n_generator, n_rank_calculator=args.n_rank_calculator)
