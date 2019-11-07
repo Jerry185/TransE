@@ -9,4 +9,6 @@ python src/main.py \
 --n_generator 24 \
 --n_rank_calculator 24 \
 --eval_freq 100 \
---max_epoch 5000
+--max_epoch 5000 \
+--save_epoch 100 \
+--model_save_path model

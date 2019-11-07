@@ -22,6 +22,8 @@ def main():
     parser.add_argument('--summary_dir', type=str, default='../summary/')
     parser.add_argument('--max_epoch', type=int, default=500)
     parser.add_argument('--eval_freq', type=int, default=10)
+    parser.add_argument('--save_epoch',type=int, default=100)
+    parser.add_argument('--model_save_path', type=str, default='../model')
     args = parser.parse_args()
     print(args)
     kg = KnowledgeGraph(data_dir=args.data_dir)
@@ -31,6 +33,7 @@ def main():
                        n_generator=args.n_generator, n_rank_calculator=args.n_rank_calculator)
     gpu_config = tf.GPUOptions(allow_growth=True)
     sess_config = tf.ConfigProto(gpu_options=gpu_config)
+    saver = tf.train.Saver()
     with tf.Session(config=sess_config) as sess:
         print('-----Initializing tf graph-----')
         tf.global_variables_initializer().run()
@@ -42,6 +45,9 @@ def main():
             kge_model.launch_training(session=sess, summary_writer=summary_writer)
             if (epoch + 1) % args.eval_freq == 0:
                 kge_model.launch_evaluation(session=sess)
+            #  保存模型
+            if (epoch + 1) % args.save_epoch == 0:
+                saver.save(sess,args.model_save_path+"/model_epoch_{}.ckpt".format(epoch))
 
 
 if __name__ == '__main__':

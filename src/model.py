@@ -297,3 +297,4 @@ class TransE:
         entity_norm = np.linalg.norm(entity_embedding, ord=2, axis=1)
         relation_norm = np.linalg.norm(relation_embedding, ord=2, axis=1)
         print('entity norm: {} relation norm: {}'.format(entity_norm, relation_norm))
+
