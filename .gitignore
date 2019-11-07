@@ -1,4 +1,6 @@
 __pycache__/
 .idea/
-data/
+data/FB15k
+data/WN18
+data/ownthink/ownthink_v2.csv
 .DS_Store

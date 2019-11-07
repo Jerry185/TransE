@@ -73,6 +73,7 @@ class TransE:
         with tf.name_scope('evaluation'):
             self.idx_head_prediction, self.idx_tail_prediction = self.evaluate(self.eval_triple)
 
+    # 推理
     def infer(self, triple_pos, triple_neg):
         with tf.name_scope('lookup'):
             # 正例的头实体向量表示
@@ -99,12 +100,14 @@ class TransE:
             else:  # L2 score
                 score_pos = tf.reduce_sum(tf.square(distance_pos), axis=1)
                 score_neg = tf.reduce_sum(tf.square(distance_neg), axis=1)
-            #  让正例距离减去负例距离最小
+            #  让正例距离减去负例距离最大
             loss = tf.reduce_sum(tf.nn.relu(margin + score_pos - score_neg), name='max_margin_loss')
         return loss
 
+    ''':parameter eval_triple shape([3]) 针对某一个三元组，预测头实体与尾实体，返回头实体与尾实体的topk列表'''
     def evaluate(self, eval_triple):
         with tf.name_scope('lookup'):
+            # 查找对应的训练好的头尾关系向量
             head = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[0])
             tail = tf.nn.embedding_lookup(self.entity_embedding, eval_triple[1])
             relation = tf.nn.embedding_lookup(self.relation_embedding, eval_triple[2])
@@ -112,11 +115,13 @@ class TransE:
             distance_head_prediction = self.entity_embedding + relation - tail
             distance_tail_prediction = head + relation - self.entity_embedding
         with tf.name_scope('rank'):
+            # 使用l1范数进行归一化
             if self.score_func == 'L1':  # L1 score
                 _, idx_head_prediction = tf.nn.top_k(tf.reduce_sum(tf.abs(distance_head_prediction), axis=1),
                                                      k=self.kg.n_entity)
                 _, idx_tail_prediction = tf.nn.top_k(tf.reduce_sum(tf.abs(distance_tail_prediction), axis=1),
-                                                     k=self.kg.n_entity)
+                                                   k=self.kg.n_entity)
+            # 使用l2范数进行归一化
             else:  # L2 score
                 _, idx_head_prediction = tf.nn.top_k(tf.reduce_sum(tf.square(distance_head_prediction), axis=1),
                                                      k=self.kg.n_entity)
@@ -173,10 +178,12 @@ class TransE:
             mp.Process(target=self.calculate_rank, kwargs={'in_queue': eval_result_queue,
                                                            'out_queue': rank_result_queue}).start()
         n_used_eval_triple = 0
+        # 循环测试集
         for eval_triple in self.kg.test_triples:
             idx_head_prediction, idx_tail_prediction = session.run(fetches=[self.idx_head_prediction,
                                                                             self.idx_tail_prediction],
                                                                    feed_dict={self.eval_triple: eval_triple})
+            # 传入一个三元组，进行头尾预测
             eval_result_queue.put((eval_triple, idx_head_prediction, idx_tail_prediction))
             n_used_eval_triple += 1
             print('[{:.3f}s] #evaluation triple: {}/{}'.format(timeit.default_timer() - start,
@@ -202,6 +209,7 @@ class TransE:
         for _ in range(n_used_eval_triple):
             head_rank_raw, tail_rank_raw, head_rank_filter, tail_rank_filter = rank_result_queue.get()
             head_meanrank_raw += head_rank_raw
+            # 头实体前十都不存在候选
             if head_rank_raw < 10:
                 head_hits10_raw += 1
             tail_meanrank_raw += tail_rank_raw
@@ -247,22 +255,30 @@ class TransE:
                 in_queue.task_done()
                 return
             else:
+                # 获取队列传来的数据
                 eval_triple, idx_head_prediction, idx_tail_prediction = idx_predictions
                 head, tail, relation = eval_triple
+                # raw越大，表示相关度越小
                 head_rank_raw = 0
                 tail_rank_raw = 0
+                # filter越大，候选三元组的错误率越大
                 head_rank_filter = 0
                 tail_rank_filter = 0
+                # 反向遍历头实体候选集
                 for candidate in idx_head_prediction[::-1]:
+                    # 如果相等直接返回
                     if candidate == head:
                         break
                     else:
                         head_rank_raw += 1
+                        # 如果候选三元组真实存在
                         if (candidate, tail, relation) in self.kg.golden_triple_pool:
                             continue
                         else:
                             head_rank_filter += 1
+                # 反向遍历尾实体候选集
                 for candidate in idx_tail_prediction[::-1]:
+                    # 如果相等直接返回
                     if candidate == tail:
                         break
                     else:
